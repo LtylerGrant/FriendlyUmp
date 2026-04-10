@@ -1,72 +1,34 @@
-// ---- Levels ----
-export type UmpireLevel = "little-league" | "middle-school" | "high-school" | "ncaa" | "mlb";
-
-export interface LevelMeta {
-  id: UmpireLevel;
-  name: string;
-  shortName: string;
-  color: string;
-  bgColor: string;
-  description: string;
-}
-
 // ---- Rules ----
 export type RuleCategory =
-  | "strike-zone"
+  | "field-equipment"
   | "pitching"
   | "batting"
   | "base-running"
-  | "fielding"
-  | "interference"
-  | "equipment"
-  | "game-management";
+  | "fielding-defense"
+  | "interference-obstruction"
+  | "game-management"
+  | "umpiring";
 
 export const RULE_CATEGORY_LABELS: Record<RuleCategory, string> = {
-  "strike-zone": "Strike Zone",
+  "field-equipment": "Field & Equipment",
   pitching: "Pitching",
   batting: "Batting",
   "base-running": "Base Running",
-  fielding: "Fielding",
-  interference: "Interference",
-  equipment: "Equipment",
+  "fielding-defense": "Fielding & Defense",
+  "interference-obstruction": "Interference & Obstruction",
   "game-management": "Game Management",
+  umpiring: "Umpiring",
 };
 
-export interface BaseRule {
+export interface Rule {
   id: string;
+  ruleRef: string; // e.g. "1.10", "8.05(a)"
   category: RuleCategory;
   title: string;
   summary: string;
   details: string;
-  appliesTo: UmpireLevel[] | "all";
-}
-
-export interface LevelRuleOverride {
-  ruleId: string;
-  level: UmpireLevel;
-  summary?: string;
-  details?: string;
-  notes?: string;
-  differences?: string;
-  enabled?: boolean;
-}
-
-export interface ResolvedRule extends BaseRule {
-  level: UmpireLevel;
-  notes?: string;
-  differences?: string;
-  isOverridden: boolean;
-}
-
-// ---- Strike Zone ----
-export interface StrikeZoneDimensions {
-  level: UmpireLevel;
-  topRatio: number;
-  bottomRatio: number;
-  widthInches: number;
-  topDescription: string;
-  bottomDescription: string;
-  notes: string;
+  keyPoints?: string[];
+  penalty?: string;
 }
 
 // ---- Quiz ----
@@ -75,20 +37,17 @@ export type QuestionType = "multiple-choice" | "true-false" | "scenario-visual" 
 export interface ScenarioConfig {
   type: "field" | "strike-zone";
   runners?: { base: 1 | 2 | 3; label?: string }[];
-  ballPosition?: { x: number; y: number };
   highlightZones?: string[];
   pitchLocation?: { x: number; y: number };
-  batterHeight?: "short" | "average" | "tall";
 }
 
 export interface QuizQuestion {
   id: string;
   type: QuestionType;
-  level: UmpireLevel | "all";
   category: RuleCategory;
   difficulty: 1 | 2 | 3;
   prompt: string;
-  options?: string[];
+  options: string[];
   correctAnswer: number;
   explanation: string;
   scenarioConfig?: ScenarioConfig;
@@ -99,9 +58,21 @@ export interface Quiz {
   id: string;
   title: string;
   description: string;
-  level: UmpireLevel | "all";
-  category: RuleCategory;
+  category: RuleCategory | "mixed";
   questions: QuizQuestion[];
+}
+
+// ---- Strike Zone Simulator ----
+export type PitchSpeed = "slow" | "medium" | "fast";
+
+export interface PitchConfig {
+  /** Normalized 0-1 where 0=far inside, 1=far outside */
+  targetX: number;
+  /** Normalized 0-1 where 0=high, 1=low */
+  targetY: number;
+  speed: PitchSpeed;
+  isStrike: boolean;
+  label?: string;
 }
 
 // ---- Progress ----
@@ -113,9 +84,16 @@ export interface QuizResult {
   correctAnswers: number;
 }
 
+export interface StrikeZoneResult {
+  date: string;
+  totalPitches: number;
+  correctCalls: number;
+  averageReactionMs: number;
+}
+
 export interface UserProgress {
-  currentLevel: UmpireLevel;
   quizResults: QuizResult[];
+  strikeZoneResults: StrikeZoneResult[];
   rulesViewed: string[];
   lastActive: string;
 }
