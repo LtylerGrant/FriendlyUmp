@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FriendlyUmp — Little League Umpire Trainer</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --ink:#1d2733; --muted:#5b6b7b;
+    --line:#dde3ea; --accent:#1f6f43; --accent-ink:#fff;
+    --ok:#1f7a3f; --ok-bg:#e6f4ea; --bad:#b3261e; --bad-bg:#fce8e6;
+    --chip:#eef2f6; --focus:#1565c0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#11161c; --card:#1a212a; --ink:#e7edf3; --muted:#9fb0c0;
+      --line:#2b3743; --accent:#3da068; --accent-ink:#06120b;
+      --ok:#7ed59b; --ok-bg:#16301f; --bad:#f1948d; --bad-bg:#3a1a18;
+      --chip:#222c36; --focus:#7fb3ff;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px 64px}
+  header{background:var(--accent);color:var(--accent-ink)}
+  .hbar{max-width:760px;margin:0 auto;padding:14px 16px;display:flex;
+    align-items:center;gap:12px;flex-wrap:wrap}
+  h1{font-size:1.15rem;margin:0;flex:1 1 auto}
+  h1 span{opacity:.85;font-weight:400}
+  .score-chip{background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px;
+    font-size:.85rem;white-space:nowrap}
+  nav{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .nbar{max-width:760px;margin:0 auto;display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px}
+  nav button{
+    background:transparent;border:0;color:var(--muted);font:inherit;font-size:.92rem;
+    padding:9px 12px;border-radius:8px;cursor:pointer;min-height:44px
+  }
+  nav button:hover{background:var(--chip);color:var(--ink)}
+  nav button[aria-current="page"]{background:var(--accent);color:var(--accent-ink)}
+  main{padding-top:18px}
+  section[hidden]{display:none}
+  h2{font-size:1.3rem;margin:.2em 0 .5em}
+  h3{font-size:1.05rem;margin:1.1em 0 .35em}
+  p{margin:.5em 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:18px;margin:14px 0}
+  .muted{color:var(--muted)}
+  .disclaimer{font-size:.85rem;color:var(--muted);border-left:3px solid var(--accent);
+    padding:8px 12px;background:var(--chip);border-radius:6px;margin:12px 0}
+  button.btn,a.btn{
+    display:inline-block;background:var(--accent);color:var(--accent-ink);border:0;
+    font:inherit;padding:11px 18px;border-radius:9px;cursor:pointer;min-height:44px;
+    text-decoration:none;margin:4px 6px 4px 0
+  }
+  button.btn.secondary{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
+  button.btn:disabled{opacity:.5;cursor:not-allowed}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat{background:var(--chip);border-radius:10px;padding:14px;text-align:center}
+  .stat b{display:block;font-size:1.6rem}
+  .stat small{color:var(--muted)}
+  fieldset{border:0;margin:0;padding:0}
+  legend{font-weight:600;font-size:1.05rem;margin-bottom:10px;padding:0}
+  .choice{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--line);
+    background:var(--card);border-radius:9px;padding:12px;margin:8px 0;cursor:pointer}
+  .choice:hover{border-color:var(--accent)}
+  .choice input{margin-top:3px}
+  .choice.correct{background:var(--ok-bg);border-color:var(--ok)}
+  .choice.wrong{background:var(--bad-bg);border-color:var(--bad)}
+  .tag{display:inline-block;font-size:.75rem;background:var(--chip);color:var(--muted);
+    padding:2px 8px;border-radius:999px;margin-right:6px}
+  .feedback{margin-top:14px;padding:12px 14px;border-radius:9px;font-size:.95rem}
+  .feedback.ok{background:var(--ok-bg);color:var(--ok)}
+  .feedback.bad{background:var(--bad-bg);color:var(--bad)}
+  .feedback b{display:block;margin-bottom:4px}
+  .feedback .exp{color:var(--ink);margin-top:6px}
+  input[type=text],input[type=search],select{
+    font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+    background:var(--card);color:var(--ink);width:100%;max-width:340px;min-height:44px
+  }
+  .flashcard{min-height:200px;display:flex;flex-direction:column;justify-content:center;
+    text-align:center;cursor:pointer;user-select:none}
+  .flashcard .face{font-size:1.1rem}
+  .flashcard .hint{color:var(--muted);font-size:.85rem;margin-top:14px}
+  details{border:1px solid var(--line);border-radius:9px;margin:8px 0;background:var(--card)}
+  details summary{cursor:pointer;padding:12px 14px;font-weight:600;min-height:44px}
+  details .body{padding:0 14px 14px}
+  .ref-html h1,.ref-html h2,.ref-html h3{font-size:1.05rem}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .progressbar{background:var(--chip);border-radius:999px;height:10px;overflow:hidden}
+  .progressbar i{display:block;height:100%;background:var(--accent)}
+  footer{max-width:760px;margin:24px auto 0;padding:18px 16px;color:var(--muted);
+    font-size:.82rem;border-top:1px solid var(--line)}
+  :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  @media (max-width:520px){ h1{flex-basis:100%} nav button{flex:1 1 auto;text-align:center} }
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <h1>FriendlyUmp <span>· Little League Umpire Trainer</span></h1>
+    <div class="score-chip" id="scoreChip" aria-live="polite">0/0 correct</div>
+  </div>
+</header>
+<nav aria-label="Primary">
+  <div class="nbar">
+    <button data-go="home">Home</button>
+    <button data-go="quiz">Quiz</button>
+    <button data-go="flashcards">Flashcards</button>
+    <button data-go="review">Review Missed</button>
+    <button data-go="reference">Study Reference</button>
+    <button data-go="upload">Upload Rules</button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section id="view-home" data-view="home">
+    <h2>Welcome, Blue!</h2>
+    <p class="muted">Build and sharpen your Little League rules knowledge. Your
+      progress is saved automatically in this browser.</p>
+    <div class="card">
+      <h3 style="margin-top:0">Your progress</h3>
+      <div class="grid">
+        <div class="stat"><b id="stTotal">0</b><small>questions answered</small></div>
+        <div class="stat"><b id="stAcc">—</b><small>overall accuracy</small></div>
+        <div class="stat"><b id="stMissed">0</b><small>in review queue</small></div>
+        <div class="stat"><b id="stSessions">0</b><small>quiz sessions</small></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <a class="btn" href="#quiz">Start a quiz</a>
+        <a class="btn secondary" href="#flashcards">Flashcards</a>
+        <a class="btn secondary" href="#review">Review missed</a>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Accuracy by topic</h3>
+      <div id="catBreakdown"><p class="muted">Answer some questions to see your breakdown.</p></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Study tips that work</h3>
+      <ul>
+        <li><b>Test yourself</b> — retrieval beats re-reading. Quiz first, then study what you miss.</li>
+        <li><b>Space it out</b> — short, repeated sessions stick better than one long cram.</li>
+        <li><b>Review your misses</b> — the Review Missed mode resurfaces weak spots until you master them.</li>
+        <li><b>Read the why</b> — every answer explains the ruling, not just the result.</li>
+      </ul>
+    </div>
+    <div class="row">
+      <button class="btn secondary" id="exportBtn">Export progress (.json)</button>
+      <button class="btn secondary" id="resetBtn">Reset all progress</button>
+    </div>
+  </section>
+
+  <section id="view-quiz" data-view="quiz" hidden>
+    <h2>Quiz</h2>
+    <div class="row">
+      <label for="quizCat" class="muted">Topic:</label>
+      <select id="quizCat" aria-label="Quiz topic filter"></select>
+      <button class="btn secondary" id="quizQuick">10-question quick quiz</button>
+      <button class="btn secondary" id="quizAll">Full set</button>
+    </div>
+    <div class="card" id="quizHost"></div>
+  </section>
+
+  <section id="view-flashcards" data-view="flashcards" hidden>
+    <h2>Flashcards</h2>
+    <p class="muted">Study mode — flip the card, then mark whether you knew it.
+      "Didn't know" adds it to Review Missed. Flashcards don't change quiz scores.</p>
+    <div class="row">
+      <label for="fcCat" class="muted">Topic:</label>
+      <select id="fcCat" aria-label="Flashcard topic filter"></select>
+      <button class="btn secondary" id="fcShuffle">Shuffle</button>
+    </div>
+    <div class="card flashcard" id="fcCard" tabindex="0" role="button"
+         aria-label="Flashcard. Press Enter or Space to flip."></div>
+    <div class="row">
+      <button class="btn secondary" id="fcPrev">‹ Prev</button>
+      <span id="fcPos" class="muted" aria-live="polite"></span>
+      <button class="btn secondary" id="fcNext">Next ›</button>
+    </div>
+    <div class="row" id="fcRate" hidden>
+      <button class="btn" id="fcKnew">I knew it</button>
+      <button class="btn secondary" id="fcDidnt">Didn't know</button>
+    </div>
+  </section>
+
+  <section id="view-review" data-view="review" hidden>
+    <h2>Review Missed</h2>
+    <p class="muted">Questions you got wrong come back here, weighted by how
+      shaky they are. Get one right twice to graduate it out.</p>
+    <div class="card" id="reviewHost"></div>
+  </section>
+
+  <section id="view-reference" data-view="reference" hidden>
+    <h2>Study Reference</h2>
+    <div class="disclaimer" id="refDisclaimer"></div>
+    <div class="row" id="refToggle" hidden>
+      <button class="btn secondary" data-src="uploaded">Uploaded rules</button>
+      <button class="btn secondary" data-src="builtin">Built-in starter notes</button>
+    </div>
+    <div class="row">
+      <input type="search" id="refSearch" placeholder="Search the rules…"
+             aria-label="Search the rules">
+    </div>
+    <div id="refHost"></div>
+  </section>
+
+  <section id="view-upload" data-view="upload" hidden>
+    <h2>Upload Your Rulebook</h2>
+    <p class="muted">Upload a Word <code>.docx</code> of your league's rules. It's
+      parsed in your browser, stored locally, and becomes your Study Reference.
+      Nothing is uploaded to any server.</p>
+    <div class="card">
+      <input type="file" id="docxInput" accept=".docx"
+             aria-label="Choose a .docx rulebook file">
+      <p id="uploadStatus" aria-live="polite" class="muted" style="margin-top:12px"></p>
+      <div class="row">
+        <button class="btn secondary" id="clearUpload">Clear uploaded rules</button>
+        <a class="btn secondary" href="#reference">View Study Reference</a>
+      </div>
+    </div>
+    <p class="muted" style="font-size:.85rem">Note: this offline parser extracts
+      the text of your document. Complex tables/images may be simplified.</p>
+  </section>
+
+</main>
+
+<footer>
+  <b>Unofficial study aid.</b> Little League® rules change by season and division,
+  and leagues adopt local rules. Always defer to the current official Little League
+  rulebook and your league's local rules. Not affiliated with or endorsed by
+  Little League Baseball, Incorporated.
+</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   FriendlyUmp — single-file Little League umpire trainer.
+   No build step, no network, no framework. State in localStorage.
+   ============================================================ */
+
+/* ---------- Categories ---------- */
+const CATEGORIES = {
+  batting:"Batting", baserunning:"Baserunning", pitching:"Pitching",
+  equipment:"Field & Equipment", game:"Game Management",
+  infieldfly:"Infield Fly", interference:"Interference / Obstruction"
+};
+
+/* ---------- Question bank ----------
+   id is the STABLE join key to saved progress. Never reuse or
+   renumber an id once shipped; only append new ones. */
+const QUESTION_BANK = [
+  /* Batting */
+  {id:"BAT-001",category:"batting",type:"tf",
+   prompt:"In Little League Major/Minor divisions, a batter who swings at and misses a third strike that the catcher does not catch cleanly may try to run to first base.",
+   choices:["True","False"],answer:1,
+   explanation:"The uncaught (\"dropped\") third strike rule does NOT apply in the Minor/Major divisions — the batter is simply out. It does apply in Junior/Senior/Big League divisions. Confirm with your division's rulebook.",
+   ruleRef:"Batter out / uncaught third strike"},
+  {id:"BAT-002",category:"batting",type:"mc",
+   prompt:"A pitched ball touches the batter who made no attempt to avoid it and was not in the strike zone. The correct call is:",
+   choices:["Award first base","Dead ball, no award — call it a ball","Batter is out","Award second base"],answer:1,
+   explanation:"To be awarded first on a hit-by-pitch the batter must try to avoid the pitch. If they made no attempt to avoid it, it is a dead ball and counts only as a ball (or strike if in the zone).",
+   ruleRef:"Hit by pitch"},
+  {id:"BAT-003",category:"batting",type:"mc",
+   prompt:"With two strikes, the batter bunts the ball foul. The ruling is:",
+   choices:["Foul ball, at-bat continues","Strike three — batter is out","Dead ball, replay the pitch","Ball, count stays"],answer:1,
+   explanation:"A bunt that goes foul with two strikes is strike three and the batter is out — bunting foul is treated differently than a swung foul.",
+   ruleRef:"Bunt foul with two strikes"},
+  {id:"BAT-004",category:"batting",type:"tf",
+   prompt:"Batting out of order is corrected automatically by the umpire as soon as it happens.",
+   choices:["True","False"],answer:1,
+   explanation:"Batting out of order is an appeal play. The umpire does not call it on their own; the defense must appeal, and timing of the appeal determines the penalty.",
+   ruleRef:"Batting out of order (appeal)"},
+  {id:"BAT-005",category:"batting",type:"mc",
+   prompt:"A foul tip that goes sharp and direct from the bat to the catcher's hands and is caught is:",
+   choices:["A foul ball, dead","A strike, ball stays live","An automatic out","Nothing — replay the pitch"],answer:1,
+   explanation:"A legally caught foul tip is a strike and the ball remains live (runners may advance at their own risk). It is not a foul ball.",
+   ruleRef:"Foul tip definition"},
+  {id:"BAT-006",category:"batting",type:"mc",
+   prompt:"A batter steps from one batter's box to the other while the pitcher is in position ready to pitch. The batter is:",
+   choices:["Allowed — switch any time","Out","Warned only, no penalty ever","Awarded a ball"],answer:1,
+   explanation:"A batter may not switch boxes once the pitcher is set/ready to pitch. Doing so results in the batter being called out.",
+   ruleRef:"Switching boxes"},
+
+  /* Baserunning */
+  {id:"BR-001",category:"baserunning",type:"mc",
+   prompt:"In the Little League Major division, when may a runner legally leave their base?",
+   choices:["As soon as the pitcher has the ball on the mound","When the pitched ball reaches the batter","Any time, leading off is allowed","Only after the batter swings"],answer:1,
+   explanation:"There is no leading off in the Minor/Major divisions. A runner may leave the base when the pitched ball reaches the batter. Leaving early is penalized.",
+   ruleRef:"No leadoff / leaving early"},
+  {id:"BR-002",category:"baserunning",type:"tf",
+   prompt:"On a force play, the defender must tag the runner to record the out.",
+   choices:["True","False"],answer:1,
+   explanation:"On a force play the defender only needs to touch the base (with the ball/in possession) before the forced runner arrives — no tag required.",
+   ruleRef:"Force play"},
+  {id:"BR-003",category:"baserunning",type:"scenario",
+   prompt:"Runner on first, one out. Batter hits a ground ball; the runner from first is well past second when the batter-runner is thrown out at first for the second out. The runner then misses second base on the way and the defense appeals before the next pitch. What's the call?",
+   choices:["Runner is safe — play is over","Runner is out on appeal; if it's the third out, no runs score on the play","Do-over, replay the at-bat","Runner returns to first, no out"],answer:1,
+   explanation:"Missing a base is an appeal play. A successful appeal makes the runner out; if that is the third out it is a force-type/timing out that can nullify runs on the play. Confirm appeal mechanics in your rulebook.",
+   ruleRef:"Missed base appeal"},
+  {id:"BR-004",category:"baserunning",type:"mc",
+   prompt:"A runner is hit by a fair batted ball while standing on second base, with no fielder having a play. The runner is:",
+   choices:["Safe — touching the base protects them","Out, ball is dead","Awarded third","Out only if it was intentional"],answer:1,
+   explanation:"A runner hit by a fair batted ball (before it passes a fielder) is generally out and the ball is dead — standing on a base does NOT protect the runner from a batted-ball interference call.",
+   ruleRef:"Runner hit by batted ball"},
+  {id:"BR-005",category:"baserunning",type:"mc",
+   prompt:"A runner runs more than three feet out of the baseline to avoid a tag. The umpire should:",
+   choices:["Allow it — runners pick their own path","Call the runner out for leaving the baseline","Award the next base","Warn the runner once"],answer:1,
+   explanation:"A runner who runs more than three feet from their direct line between bases to avoid a tag is out. The base path is established by the runner's position relative to the fielder making the tag.",
+   ruleRef:"Out of base path"},
+  {id:"BR-006",category:"baserunning",type:"tf",
+   prompt:"Two runners may legally occupy the same base at the same time.",
+   choices:["True","False"],answer:1,
+   explanation:"Two runners may not occupy the same base. The trailing runner is generally the one who is out when tagged; the lead runner is entitled to the base unless forced.",
+   ruleRef:"Two runners, one base"},
+  {id:"BR-007",category:"baserunning",type:"scenario",
+   prompt:"A batter-runner clearly beats the throw to first but overruns the bag, turns toward second, and is tagged before getting back. What's the call?",
+   choices:["Safe — overrunning first is always protected","Out — turning toward second forfeits the protection","Safe, must return only to be protected","Dead ball, return to first"],answer:1,
+   explanation:"Overrunning first is protected only if the runner makes no attempt toward second. Turning and moving toward second exposes the runner to being tagged out. (Some leagues judge \"attempt\" strictly — know your local interpretation.)",
+   ruleRef:"Overrunning first base"},
+
+  /* Pitching */
+  {id:"PIT-001",category:"pitching",type:"tf",
+   prompt:"In Little League, pitching eligibility is governed by a pitch count and required days of rest, not by an innings-pitched limit.",
+   choices:["True","False"],answer:0,
+   explanation:"Little League uses a pitch-count limit with mandatory rest based on pitches thrown. Exact thresholds vary by age/division and season — always check the current regulation.",
+   ruleRef:"Pitch count & rest"},
+  {id:"PIT-002",category:"pitching",type:"mc",
+   prompt:"A pitcher reaches the maximum pitch count for their age in the middle of a batter's at-bat. The pitcher:",
+   choices:["Must be removed immediately, mid-count","May finish pitching to that batter, then must be removed","May finish the inning","Is done for the season"],answer:1,
+   explanation:"If the limit is reached during an at-bat, the pitcher may complete pitching to that batter before being removed (subject to current regulation wording).",
+   ruleRef:"Reaching the limit mid-batter"},
+  {id:"PIT-003",category:"pitching",type:"tf",
+   prompt:"The balk rule is enforced the same way in the Little League Major division as in professional baseball.",
+   choices:["True","False"],answer:1,
+   explanation:"In the Minor/Major divisions there is no balk; an illegal pitch with runners on results in a ball being awarded (and a dead ball). Balks are enforced in the higher divisions.",
+   ruleRef:"Illegal pitch vs. balk"},
+  {id:"PIT-004",category:"pitching",type:"mc",
+   prompt:"How many warm-up pitches is a pitcher generally allowed when entering to start an inning?",
+   choices:["Up to eight, or one minute","Unlimited until ready","Exactly three","None"],answer:0,
+   explanation:"A pitcher is generally allowed up to eight preparatory pitches (or about one minute). Umpires may allow more after injury or other delay. Check local time limits.",
+   ruleRef:"Warm-up pitches"},
+  {id:"PIT-005",category:"pitching",type:"tf",
+   prompt:"Once removed as a pitcher, a player may return to pitch again later in the same game.",
+   choices:["True","False"],answer:1,
+   explanation:"A player removed from the pitching position may not return as a pitcher in the same game (they may play other positions). Confirm with the current regulation.",
+   ruleRef:"Return as pitcher"},
+  {id:"PIT-006",category:"pitching",type:"mc",
+   prompt:"A defensive coach makes a second trip to the same pitcher in the same inning. The required action is:",
+   choices:["Nothing, trips are unlimited","That pitcher must be removed as pitcher","Warning only","The batter is awarded a ball"],answer:1,
+   explanation:"A second charged conference/trip to the same pitcher in the same inning requires that pitcher's removal from the mound. Trip rules vary by division — verify locally.",
+   ruleRef:"Mound visits"},
+
+  /* Field & Equipment */
+  {id:"EQ-001",category:"equipment",type:"mc",
+   prompt:"Which bat standard mark is required for bats in the Little League Minor/Major (non-wood) divisions?",
+   choices:["BBCOR .50","USA Baseball mark","BPF 1.15 only","Any aluminum bat"],answer:1,
+   explanation:"Tee Ball/Minor/Major non-wood bats must carry the USA Baseball mark. BBCOR is for the Junior/Senior level. Always check the current approved-bat regulation.",
+   ruleRef:"Bat standards"},
+  {id:"EQ-002",category:"equipment",type:"tf",
+   prompt:"Players may wear hard casts during a game if padded.",
+   choices:["True","False"],answer:1,
+   explanation:"Hard casts are generally not permitted for players in the field/at bat, even if padded; a player may sit on the bench. Medical-exception specifics vary — confirm locally.",
+   ruleRef:"Casts / hard items"},
+  {id:"EQ-003",category:"equipment",type:"tf",
+   prompt:"A player may wear jewelry as long as it is taped.",
+   choices:["True","False"],answer:1,
+   explanation:"Players generally may not wear jewelry (medical-alert tags are an exception and must be taped to the body). Local interpretation may vary slightly.",
+   ruleRef:"Jewelry"},
+  {id:"EQ-004",category:"equipment",type:"mc",
+   prompt:"The catcher, while warming up a pitcher between innings near the backstop, must wear:",
+   choices:["Nothing required for warm-ups","At minimum a mask/helmet with throat protection","Only a glove","Full gear only during the game"],answer:1,
+   explanation:"Anyone warming up a pitcher must wear a mask/helmet with a throat guard (and the catcher's full gear behind the plate). This applies to between-inning warm-ups too.",
+   ruleRef:"Catcher's equipment"},
+  {id:"EQ-005",category:"equipment",type:"mc",
+   prompt:"A batter comes to the plate without a helmet that meets the standard. The umpire should:",
+   choices:["Allow the at-bat","Require a proper helmet before the at-bat continues","Call the batter out immediately","Eject the batter"],answer:1,
+   explanation:"A proper NOCSAE helmet is required; the umpire has the player obtain a legal helmet. Deliberate equipment abuse can carry further penalty, but the first step is correction.",
+   ruleRef:"Batting helmet"},
+
+  /* Game Management */
+  {id:"GM-001",category:"game",type:"mc",
+   prompt:"A regulation Little League Major game is scheduled for how many innings?",
+   choices:["Five","Six","Seven","Nine"],answer:1,
+   explanation:"A regulation Major-division game is six innings (four innings, or 3½ if the home team leads, makes a game official if shortened). Junior/Senior are seven. Confirm by division.",
+   ruleRef:"Regulation game length"},
+  {id:"GM-002",category:"game",type:"mc",
+   prompt:"Under a typical 10-run rule, a game can end early after the visiting team has batted in the inning if a team leads by 10 or more after at least:",
+   choices:["2 innings","4 innings (3½ if home leads)","5 innings","It never ends early"],answer:1,
+   explanation:"The mercy/run-ahead rule commonly applies after four innings (3½ if the home team is ahead) at a 10-run margin; 15 after three is also common. Local rules vary — verify.",
+   ruleRef:"Run-ahead (mercy) rule"},
+  {id:"GM-003",category:"game",type:"tf",
+   prompt:"A starter who is removed from the game may re-enter once, in their original spot in the batting order.",
+   choices:["True","False"],answer:0,
+   explanation:"A withdrawn starter may re-enter the game one time, and must return to the original batting-order position. Substitute re-entry rules differ — check the current regulation.",
+   ruleRef:"Substitution / re-entry"},
+  {id:"GM-004",category:"game",type:"tf",
+   prompt:"Mandatory play rules require every rostered player present to play a minimum amount.",
+   choices:["True","False"],answer:0,
+   explanation:"Little League mandatory-play rules require minimum at-bats and/or defensive play for every player present, with penalties for violations. Specifics depend on roster size and division.",
+   ruleRef:"Mandatory play"},
+  {id:"GM-005",category:"game",type:"mc",
+   prompt:"A coach disputes a call. Which type of decision may be appealed/argued?",
+   choices:["A judgment call (safe/out, ball/strike)","A misapplication of a rule","Both equally","Neither, ever"],answer:1,
+   explanation:"Judgment calls (safe/out, balls/strikes, fair/foul) are not subject to protest. Only the misapplication of a rule may be protested, per the protest procedure.",
+   ruleRef:"Protests vs. judgment"},
+  {id:"GM-006",category:"game",type:"tf",
+   prompt:"The umpire may forfeit a game for repeated unsportsmanlike conduct after warnings.",
+   choices:["True","False"],answer:0,
+   explanation:"The umpire has authority over the game and may eject and ultimately forfeit for serious or repeated misconduct after appropriate warnings, following procedure.",
+   ruleRef:"Umpire authority"},
+
+  /* Infield Fly */
+  {id:"IFF-001",category:"infieldfly",type:"mc",
+   prompt:"The infield fly rule can be in effect only when:",
+   choices:["Any runner is on base","Runners on first and second, OR bases loaded, with fewer than two outs","Bases loaded with two outs","A runner is on third"],answer:1,
+   explanation:"Infield fly applies with runners on first and second, or bases loaded, and fewer than two outs, on a fair fly (not a line drive or bunt) catchable with ordinary effort.",
+   ruleRef:"Infield fly conditions"},
+  {id:"IFF-002",category:"infieldfly",type:"tf",
+   prompt:"When the infield fly is called, the ball is dead and runners may not advance.",
+   choices:["True","False"],answer:1,
+   explanation:"On an infield fly the batter is out but the ball stays LIVE. Runners may advance at their own risk (tagging up if the ball is caught).",
+   ruleRef:"Infield fly — live ball"},
+  {id:"IFF-003",category:"infieldfly",type:"mc",
+   prompt:"An infield fly is declared and the ball then drops untouched in fair territory. The result is:",
+   choices:["Batter safe, runners forced","Batter is out; runners advance at their own risk, not forced","Replay the pitch","All runners out"],answer:1,
+   explanation:"The batter is out the moment the infield fly is declared, regardless of whether the ball is caught. Runners are no longer forced and advance at their own risk.",
+   ruleRef:"Infield fly — uncaught"},
+  {id:"IFF-004",category:"infieldfly",type:"tf",
+   prompt:"A short fly the umpire judges an infielder can catch with ordinary effort qualifies for the infield fly even if an outfielder ends up making the catch.",
+   choices:["True","False"],answer:0,
+   explanation:"It is based on ordinary effort by an infielder, not who actually catches it. Position of the player is not the deciding factor — ordinary effort and the ball being playable by the infield is.",
+   ruleRef:"Ordinary effort"},
+  {id:"IFF-005",category:"infieldfly",type:"scenario",
+   prompt:"Runners on first and second, one out. A bunt is popped up in the air over the pitcher. Is the infield fly rule applied?",
+   choices:["Yes, it's a pop-up","No — a bunt is excluded from the infield fly rule","Only if it's caught","Only with bases loaded"],answer:1,
+   explanation:"A bunted pop-up is specifically excluded from the infield fly rule (an intentionally dropped bunt can instead be ruled an intentional drop). The infield fly never applies to bunts.",
+   ruleRef:"Bunt exclusion"},
+
+  /* Interference / Obstruction */
+  {id:"INT-001",category:"interference",type:"mc",
+   prompt:"A fielder not in the act of fielding the ball and without the ball blocks a runner's path. This is:",
+   choices:["Interference by the runner","Obstruction by the fielder","A legal play","Nothing — incidental contact"],answer:1,
+   explanation:"A fielder who impedes a runner without the ball and not in the act of fielding it is guilty of obstruction; the umpire awards bases to nullify the act.",
+   ruleRef:"Obstruction"},
+  {id:"INT-002",category:"interference",type:"mc",
+   prompt:"The batter swings and the bat contacts the catcher's mitt as the catcher attempts a throw. This is:",
+   choices:["Batter's interference — batter out","Catcher's interference — batter awarded first","Nothing, play on","Dead ball, replay pitch"],answer:1,
+   explanation:"When the catcher contacts the bat or interferes with the batter's swing, it is catcher's interference and the batter is awarded first base (the offense may instead take the result of the play).",
+   ruleRef:"Catcher's interference"},
+  {id:"INT-003",category:"interference",type:"tf",
+   prompt:"A spectator reaching out of the stands and touching a live ball is always interference on the offense.",
+   choices:["True","False"],answer:1,
+   explanation:"Spectator interference makes the ball dead; the umpire imposes whatever action would have occurred absent the interference. It is not automatically charged to the offense.",
+   ruleRef:"Spectator interference"},
+  {id:"INT-004",category:"interference",type:"scenario",
+   prompt:"A batted ball is rolling fair down the third-base line. The batter-runner accidentally kicks it while running in the running lane area near the bag. What's the most likely call?",
+   choices:["Always interference, batter out","Umpire judgment — fair/foul and whether the runner intentionally interfered","Automatic foul ball","Dead ball, runner to second"],answer:1,
+   explanation:"This is a judgment call: where the ball is touched (fair/foul) and whether the runner deliberately interfered with a fielder's opportunity. Unintentional contact is judged differently than intentional interference.",
+   ruleRef:"Runner & batted ball"},
+  {id:"INT-005",category:"interference",type:"mc",
+   prompt:"A runner deliberately crashes into the catcher who is holding the ball, rather than sliding or avoiding. The umpire should:",
+   choices:["Allow it, it's a collision play","Call the runner out for malicious contact and may eject","Award the runner home","Warn both teams"],answer:1,
+   explanation:"Little League has no \"must slide\" rule, but a runner who maliciously crashes into a fielder is out and may be ejected. The runner must avoid malicious contact.",
+   ruleRef:"Malicious contact"}
+];
+
+/* ---------- Built-in reference notes ---------- */
+const DEFAULT_RULES = [
+  {id:"r-batting",title:"Batting",category:"batting",html:
+   "<p>Each batter must bat in the proper order; batting out of order is an "+
+   "<strong>appeal play</strong> handled by the defense, not auto-corrected by the umpire. "+
+   "A hit batter is awarded first base only if they attempted to avoid the pitch.</p>"+
+   "<p>A foul bunt with two strikes is strike three (batter out). A legally caught "+
+   "foul tip is a strike with the ball live. In the Minor/Major divisions, an uncaught "+
+   "third strike does <strong>not</strong> let the batter run — the batter is out "+
+   "(the uncaught-third-strike rule applies in Junior/Senior/Big League).</p>"},
+  {id:"r-baserunning",title:"Baserunning",category:"baserunning",html:
+   "<p>There is <strong>no leading off</strong> in the Minor/Major divisions; a runner "+
+   "may leave the base when the pitched ball reaches the batter. Leaving early is penalized.</p>"+
+   "<p>On a force, only the base must be touched. A runner more than three feet out of the "+
+   "baseline to avoid a tag is out. Two runners may not share a base — the trailing runner "+
+   "is usually the one out. Missed bases and leaving early on a catch are appeal plays.</p>"},
+  {id:"r-pitching",title:"Pitching",category:"pitching",html:
+   "<p>Eligibility is governed by a <strong>pitch count with mandatory rest</strong> "+
+   "based on pitches thrown; thresholds vary by age/division and by season — verify the "+
+   "current regulation. Reaching the limit mid-batter generally lets the pitcher finish "+
+   "that batter.</p>"+
+   "<p>In Minor/Major there is no balk; an illegal pitch with runners on yields a ball "+
+   "and dead ball. A second mound trip to the same pitcher in an inning requires removal; "+
+   "a pitcher removed from the mound may not return to pitch in that game.</p>"},
+  {id:"r-equipment",title:"Field & Equipment",category:"equipment",html:
+   "<p>Non-wood bats in Tee Ball/Minor/Major must carry the <strong>USA Baseball</strong> "+
+   "mark; Junior/Senior use BBCOR. Always check the current approved-bat list.</p>"+
+   "<p>Proper NOCSAE batting helmets are required. Anyone warming up a pitcher must wear a "+
+   "mask/helmet with throat protection. Jewelry is generally prohibited (taped medical-alert "+
+   "tags excepted); hard casts are not permitted for active players.</p>"},
+  {id:"r-game",title:"Game Management",category:"game",html:
+   "<p>A Major game is six innings (Junior/Senior seven); a shortened game is regulation "+
+   "after four innings (3½ if the home team leads). Run-ahead (mercy) rules commonly apply "+
+   "at a 10-run margin after four innings, or 15 after three — local rules vary.</p>"+
+   "<p>A withdrawn starter may re-enter once in their original lineup spot. Mandatory-play "+
+   "minimums apply to every player present. Judgment calls cannot be protested — only a "+
+   "misapplication of a rule may be, via the protest procedure.</p>"},
+  {id:"r-infieldfly",title:"Infield Fly",category:"infieldfly",html:
+   "<p>Applies with runners on first and second, OR bases loaded, and <strong>fewer than "+
+   "two outs</strong>, on a fair fly catchable by an infielder with <em>ordinary effort</em> "+
+   "(not a line drive, not a bunt).</p>"+
+   "<p>When declared, the <strong>batter is out</strong> immediately, but the ball stays "+
+   "<strong>live</strong>: runners are no longer forced and advance at their own risk "+
+   "(tagging up if the ball is caught).</p>"},
+  {id:"r-interference",title:"Interference / Obstruction",category:"interference",html:
+   "<p><strong>Obstruction</strong>: a fielder without the ball and not in the act of "+
+   "fielding it impedes a runner — the umpire awards bases to undo the act. "+
+   "<strong>Catcher's interference</strong> awards the batter first base.</p>"+
+   "<p>Spectator interference makes the ball dead with the umpire imposing the likely "+
+   "outcome. Little League has no must-slide rule, but a runner who makes "+
+   "<strong>malicious contact</strong> is out and may be ejected.</p>"}
+];
+
+const DISCLAIMER = "Starter study material only. Little League rules change by "+
+  "season and division, and leagues adopt local rules. Always defer to the current "+
+  "official Little League rulebook and your league's local rules. Unofficial study aid.";
+
+/* ---------- Persistent store ---------- */
+const STORE_KEY = "friendlyump.v1";
+const STORE_VERSION = 1;
+const MASTERY_THRESHOLD = 2;
+
+function freshState(){
+  return {
+    version:STORE_VERSION,
+    stats:{totalAnswered:0,totalCorrect:0,sessions:0,lastVisitISO:""},
+    perQuestion:{},
+    categoryStats:{},
+    uploadedRules:{present:false,name:"",importedISO:"",html:"",text:""},
+    settings:{categoryFilter:"all",refSource:"builtin"}
+  };
+}
+const Store = (function(){
+  let state = freshState();
+  let timer = null;
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      if(!raw){ state = freshState(); return; }
+      const p = JSON.parse(raw);
+      if(!p || p.version !== STORE_VERSION || typeof p.stats !== "object"){
+        state = freshState();
+      } else {
+        state = Object.assign(freshState(), p);
+        state.stats = Object.assign(freshState().stats, p.stats||{});
+        state.uploadedRules = Object.assign(freshState().uploadedRules, p.uploadedRules||{});
+        state.settings = Object.assign(freshState().settings, p.settings||{});
+      }
+    }catch(e){ state = freshState(); }
+  }
+  function save(){
+    clearTimeout(timer);
+    timer = setTimeout(function(){
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+    },150);
+  }
+  return {
+    load:load, save:save,
+    get:function(){ return state; },
+    reset:function(){ state = freshState(); try{ localStorage.removeItem(STORE_KEY); }catch(e){} },
+    exportJSON:function(){ return JSON.stringify(state,null,2); }
+  };
+})();
+
+/* ---------- Helpers ---------- */
+function $(sel,root){ return (root||document).querySelector(sel); }
+function el(tag,attrs,kids){
+  const n = document.createElement(tag);
+  if(attrs) for(const k in attrs){
+    if(k==="class") n.className=attrs[k];
+    else if(k==="text") n.textContent=attrs[k];
+    else n.setAttribute(k,attrs[k]);
+  }
+  (kids||[]).forEach(function(c){ n.appendChild(typeof c==="string"?document.createTextNode(c):c); });
+  return n;
+}
+function escapeHTML(s){
+  return String(s).replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+function shuffle(a){
+  a = a.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function qProgress(id){
+  const s = Store.get();
+  if(!s.perQuestion[id]){
+    s.perQuestion[id] = {seen:0,correct:0,wrong:0,lastResult:"",lastSeenISO:"",mastery:0,missed:false};
+  }
+  return s.perQuestion[id];
+}
+
+/* ---------- Scoring shared by Quiz & Review ---------- */
+function recordAnswer(q, chosenIdx, isReview){
+  const s = Store.get();
+  const pq = qProgress(q.id);
+  const correct = chosenIdx === q.answer;
+  pq.seen++;
+  pq.lastSeenISO = new Date().toISOString();
+  pq.lastResult = correct ? "right" : "wrong";
+  if(correct) pq.correct++; else pq.wrong++;
+
+  if(isReview){
+    // Simple spaced repetition: counter + recency, no date intervals.
+    if(correct){
+      pq.mastery++;
+      if(pq.mastery >= MASTERY_THRESHOLD) pq.missed = false;
+    } else {
+      pq.mastery = 0; pq.missed = true;
+    }
+  } else {
+    // Quiz mode also feeds the review queue and counts toward score.
+    s.stats.totalAnswered++;
+    if(correct) s.stats.totalCorrect++;
+    const cs = s.categoryStats[q.category] || (s.categoryStats[q.category]={answered:0,correct:0});
+    cs.answered++; if(correct) cs.correct++;
+    if(!correct){ pq.missed = true; pq.mastery = 0; }
+  }
+  Store.save();
+  refreshScoreChip();
+  return correct;
+}
+
+function refreshScoreChip(){
+  const st = Store.get().stats;
+  $("#scoreChip").textContent = st.totalCorrect + "/" + st.totalAnswered + " correct";
+}
+
+/* ---------- A reusable question card ---------- */
+function buildQuestionCard(q, opts){
+  opts = opts || {};
+  const host = el("div");
+  const meta = el("div",{class:"row"});
+  meta.appendChild(el("span",{class:"tag",text:CATEGORIES[q.category]||q.category}));
+  meta.appendChild(el("span",{class:"tag",text:q.type==="scenario"?"What's the call?":q.type.toUpperCase()}));
+  host.appendChild(meta);
+
+  const fs = el("fieldset");
+  fs.appendChild(el("legend",{text:q.prompt}));
+  const choiceEls = [];
+  q.choices.forEach(function(c,i){
+    const lab = el("label",{class:"choice"});
+    const inp = el("input",{type:"radio",name:"ans_"+q.id});
+    inp.value = i;
+    lab.appendChild(inp);
+    lab.appendChild(el("span",{text:c}));
+    fs.appendChild(lab);
+    choiceEls.push({lab:lab,inp:inp});
+  });
+  host.appendChild(fs);
+
+  const submit = el("button",{class:"btn",type:"button"},["Submit answer"]);
+  submit.disabled = true;
+  fs.addEventListener("change",function(){ submit.disabled=false; });
+  host.appendChild(submit);
+
+  const fb = el("div",{class:"feedback","aria-live":"polite"});
+  fb.style.display="none";
+  host.appendChild(fb);
+
+  const next = el("button",{class:"btn secondary",type:"button"},["Next question ›"]);
+  next.style.display="none";
+  host.appendChild(next);
+
+  submit.addEventListener("click",function(){
+    let chosen=-1;
+    choiceEls.forEach(function(ce,i){ if(ce.inp.checked) chosen=i; });
+    if(chosen<0) return;
+    const correct = recordAnswer(q, chosen, !!opts.review);
+    choiceEls.forEach(function(ce,i){
+      ce.inp.disabled=true;
+      if(i===q.answer) ce.lab.classList.add("correct");
+      if(i===chosen && !correct) ce.lab.classList.add("wrong");
+    });
+    submit.disabled=true;
+    fb.style.display="block";
+    fb.className = "feedback " + (correct?"ok":"bad");
+    fb.innerHTML = "";
+    fb.appendChild(el("b",{text:(correct?"✓ Correct":"✗ Incorrect") +
+      (q.ruleRef?(" — "+q.ruleRef):"")}));
+    fb.appendChild(el("div",{class:"exp",text:q.explanation}));
+    next.style.display="inline-block";
+    next.focus();
+  });
+  next.addEventListener("click",function(){ if(opts.onNext) opts.onNext(); });
+  return host;
+}
+
+/* ---------- Quiz view ---------- */
+const Quiz = (function(){
+  let pool=[], idx=0, quick=false;
+  function pickPool(){
+    const filter = Store.get().settings.categoryFilter;
+    let qs = QUESTION_BANK.filter(function(q){ return filter==="all"||q.category===filter; });
+    qs = qs.map(function(q){
+      const pq = Store.get().perQuestion[q.id];
+      const seen = pq?pq.seen:0;
+      const weak = pq?(pq.wrong-pq.correct):0;
+      return {q:q,seen:seen,weak:weak,r:Math.random()};
+    });
+    qs.sort(function(a,b){
+      if((a.seen===0)!==(b.seen===0)) return a.seen===0?-1:1;
+      if(b.weak!==a.weak) return b.weak-a.weak;
+      return a.r-b.r;
+    });
+    pool = qs.map(function(x){ return x.q; });
+    if(quick) pool = pool.slice(0,10);
+    idx=0;
+  }
+  function render(){
+    const host = $("#quizHost"); host.innerHTML="";
+    if(pool.length===0){
+      host.appendChild(el("p",{class:"muted",text:"No questions for this topic."}));
+      return;
+    }
+    if(idx>=pool.length){
+      Store.get().stats.sessions++; Store.save();
+      const c = el("div");
+      c.appendChild(el("h3",{text:"Session complete"}));
+      c.appendChild(el("p",{class:"muted",text:"Nice work. Missed questions are waiting in Review Missed."}));
+      const again=el("button",{class:"btn",type:"button"},["New session"]);
+      again.addEventListener("click",function(){ pickPool(); render(); });
+      c.appendChild(again);
+      c.appendChild(el("a",{class:"btn secondary",href:"#review"},["Go to Review Missed"]));
+      host.appendChild(c);
+      return;
+    }
+    const prog = el("div");
+    prog.appendChild(el("p",{class:"muted",text:"Question "+(idx+1)+" of "+pool.length}));
+    const bar=el("div",{class:"progressbar"}); const fill=el("i");
+    fill.style.width=Math.round(idx/pool.length*100)+"%"; bar.appendChild(fill);
+    prog.appendChild(bar);
+    host.appendChild(prog);
+    host.appendChild(buildQuestionCard(pool[idx],{onNext:function(){ idx++; render(); }}));
+  }
+  function init(){
+    const sel=$("#quizCat");
+    if(!sel.options.length){
+      sel.appendChild(el("option",{value:"all"},["All topics"]));
+      for(const k in CATEGORIES) sel.appendChild(el("option",{value:k},[CATEGORIES[k]]));
+    }
+    sel.value = Store.get().settings.categoryFilter;
+    sel.onchange=function(){
+      Store.get().settings.categoryFilter=sel.value; Store.save();
+      $("#fcCat").value=sel.value; pickPool(); render();
+    };
+    $("#quizQuick").onclick=function(){ quick=true; pickPool(); render(); };
+    $("#quizAll").onclick=function(){ quick=false; pickPool(); render(); };
+    pickPool(); render();
+  }
+  return {init:init};
+})();
+
+/* ---------- Review Missed view ---------- */
+const Review = (function(){
+  let queue=[], pos=0;
+  function build(){
+    const s=Store.get();
+    queue = QUESTION_BANK.filter(function(q){
+      const pq=s.perQuestion[q.id]; return pq && pq.missed;
+    }).map(function(q){
+      const pq=s.perQuestion[q.id];
+      return {q:q,mastery:pq.mastery||0,last:pq.lastSeenISO||""};
+    });
+    queue.sort(function(a,b){
+      if(a.mastery!==b.mastery) return a.mastery-b.mastery;       // shakiest first
+      return a.last<b.last?1:(a.last>b.last?-1:0);                // most recently missed first
+    });
+    queue = queue.map(function(x){ return x.q; });
+    pos=0;
+  }
+  function render(){
+    build();
+    const host=$("#reviewHost"); host.innerHTML="";
+    if(queue.length===0){
+      host.appendChild(el("p",{class:"muted",text:"Nothing to review — answer some quiz questions, or you've mastered them all. Well done, Blue!"}));
+      host.appendChild(el("a",{class:"btn",href:"#quiz"},["Take a quiz"]));
+      return;
+    }
+    if(pos>=queue.length) pos=0;
+    host.appendChild(el("p",{class:"muted",text:queue.length+" question(s) in your review queue"}));
+    host.appendChild(buildQuestionCard(queue[pos],{review:true,onNext:function(){
+      pos++; render();
+    }}));
+  }
+  return {render:render};
+})();
+
+/* ---------- Flashcards view ---------- */
+const Flash = (function(){
+  let cards=[], i=0, flipped=false;
+  function pick(){
+    const f=Store.get().settings.categoryFilter;
+    cards = QUESTION_BANK.filter(function(q){ return f==="all"||q.category===f; });
+    cards = shuffle(cards); i=0; flipped=false;
+  }
+  function draw(){
+    const c=$("#fcCard");
+    if(cards.length===0){ c.textContent="No cards for this topic."; $("#fcRate").hidden=true; return; }
+    const q=cards[i];
+    c.innerHTML="";
+    if(!flipped){
+      c.appendChild(el("div",{class:"face",text:q.prompt}));
+      c.appendChild(el("div",{class:"hint",text:"Tap / Enter to reveal the answer"}));
+      $("#fcRate").hidden=true;
+    } else {
+      c.appendChild(el("div",{class:"face",text:"Answer: "+q.choices[q.answer]}));
+      c.appendChild(el("div",{class:"hint",text:q.explanation+(q.ruleRef?(" ("+q.ruleRef+")"):"")}));
+      $("#fcRate").hidden=false;
+    }
+    $("#fcPos").textContent=(i+1)+" / "+cards.length;
+  }
+  function flip(){ flipped=!flipped; draw(); }
+  function init(){
+    const sel=$("#fcCat");
+    if(!sel.options.length){
+      sel.appendChild(el("option",{value:"all"},["All topics"]));
+      for(const k in CATEGORIES) sel.appendChild(el("option",{value:k},[CATEGORIES[k]]));
+    }
+    sel.value=Store.get().settings.categoryFilter;
+    sel.onchange=function(){
+      Store.get().settings.categoryFilter=sel.value; Store.save();
+      $("#quizCat").value=sel.value; pick(); draw();
+    };
+    const card=$("#fcCard");
+    card.onclick=flip;
+    card.onkeydown=function(e){
+      if(e.key==="Enter"||e.key===" "){ e.preventDefault(); flip(); }
+      else if(e.key==="ArrowRight"){ next(); }
+      else if(e.key==="ArrowLeft"){ prev(); }
+    };
+    function next(){ i=(i+1)%cards.length; flipped=false; draw(); }
+    function prev(){ i=(i-1+cards.length)%cards.length; flipped=false; draw(); }
+    $("#fcNext").onclick=next;
+    $("#fcPrev").onclick=prev;
+    $("#fcShuffle").onclick=function(){ pick(); draw(); };
+    $("#fcKnew").onclick=function(){ next(); };
+    $("#fcDidnt").onclick=function(){
+      const pq=qProgress(cards[i].id); pq.missed=true; pq.mastery=0; Store.save();
+      next();
+    };
+    pick(); draw();
+  }
+  return {init:init};
+})();
+
+/* ---------- Study Reference + search ---------- */
+const Reference = (function(){
+  function renderList(){
+    const s=Store.get();
+    const host=$("#refHost"); host.innerHTML="";
+    $("#refDisclaimer").textContent=DISCLAIMER;
+    const hasUp = s.uploadedRules.present;
+    $("#refToggle").hidden = !hasUp;
+    if(hasUp){
+      $("#refToggle").querySelectorAll("button").forEach(function(b){
+        b.setAttribute("aria-current", b.dataset.src===s.settings.refSource?"true":"false");
+        b.classList.toggle("btn",true);
+        b.classList.toggle("secondary", b.dataset.src!==s.settings.refSource);
+      });
+    }
+    const term=($("#refSearch").value||"").trim().toLowerCase();
+    if(hasUp && s.settings.refSource==="uploaded"){
+      const wrap=el("div",{class:"card"});
+      wrap.appendChild(el("p",{class:"muted",text:"Source: "+s.uploadedRules.name}));
+      const body=el("div",{class:"ref-html"});
+      body.innerHTML = s.uploadedRules.html || ("<pre>"+escapeHTML(s.uploadedRules.text)+"</pre>");
+      if(term && body.textContent.toLowerCase().indexOf(term)<0){
+        wrap.appendChild(el("p",{class:"muted",text:'No match for "'+term+'" in the uploaded document.'}));
+      } else {
+        wrap.appendChild(body);
+      }
+      host.appendChild(wrap);
+      return;
+    }
+    let any=false;
+    DEFAULT_RULES.forEach(function(r){
+      const hay=(r.title+" "+r.html).toLowerCase();
+      if(term && hay.indexOf(term)<0) return;
+      any=true;
+      const d=el("details"); if(!term) d.open=false; else d.open=true;
+      d.appendChild(el("summary",{text:r.title}));
+      const b=el("div",{class:"body ref-html"}); b.innerHTML=r.html;
+      d.appendChild(b);
+      host.appendChild(d);
+    });
+    if(!any) host.appendChild(el("p",{class:"muted",text:'No match for "'+term+'".'}));
+  }
+  function init(){
+    $("#refSearch").oninput=renderList;
+    $("#refToggle").querySelectorAll("button").forEach(function(b){
+      b.onclick=function(){
+        Store.get().settings.refSource=b.dataset.src; Store.save(); renderList();
+      };
+    });
+    renderList();
+  }
+  return {init:init,render:renderList};
+})();
+
+/* ---------- Offline .docx text extractor ----------
+   .docx is a ZIP. We read the central directory, locate
+   word/document.xml, inflate it with the browser-native
+   DecompressionStream, and pull text from <w:t>/<w:p>. */
+async function inflateRaw(bytes){
+  const ds = new DecompressionStream("deflate-raw");
+  const stream = new Blob([bytes]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function extractDocxText(arrayBuffer){
+  const buf = new Uint8Array(arrayBuffer);
+  const dv = new DataView(arrayBuffer);
+  // locate End Of Central Directory (0x06054b50), scanning from the end
+  let eocd=-1;
+  for(let i=buf.length-22;i>=0;i--){
+    if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; }
+  }
+  if(eocd<0) throw new Error("Not a ZIP/.docx");
+  const cdOffset = dv.getUint32(eocd+16,true);
+  const entries  = dv.getUint16(eocd+10,true);
+  let p=cdOffset, targetLHO=-1;
+  for(let n=0;n<entries;n++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const nameLen=dv.getUint16(p+28,true);
+    const extraLen=dv.getUint16(p+30,true);
+    const cmtLen=dv.getUint16(p+32,true);
+    const lho=dv.getUint32(p+42,true);
+    const name=new TextDecoder().decode(buf.subarray(p+46,p+46+nameLen));
+    if(name==="word/document.xml"){ targetLHO=lho; }
+    p += 46+nameLen+extraLen+cmtLen;
+  }
+  if(targetLHO<0) throw new Error("word/document.xml not found");
+  if(dv.getUint32(targetLHO,true)!==0x04034b50) throw new Error("Bad local header");
+  const method=dv.getUint16(targetLHO+8,true);
+  const cSize=dv.getUint32(targetLHO+18,true);
+  const nameLen=dv.getUint16(targetLHO+26,true);
+  const extraLen=dv.getUint16(targetLHO+28,true);
+  const dataStart=targetLHO+30+nameLen+extraLen;
+  const comp=buf.subarray(dataStart,dataStart+cSize);
+  const xmlBytes = method===0 ? comp : await inflateRaw(comp);
+  const xml = new TextDecoder().decode(xmlBytes);
+  const doc = new DOMParser().parseFromString(xml,"application/xml");
+  if(doc.querySelector("parsererror")) throw new Error("XML parse error");
+  const paras = doc.getElementsByTagName("w:p");
+  const out=[];
+  for(let i=0;i<paras.length;i++){
+    const ts=paras[i].getElementsByTagName("w:t");
+    let line="";
+    for(let j=0;j<ts.length;j++) line+=ts[j].textContent;
+    out.push(line);
+  }
+  const text = out.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+  if(!text) throw new Error("No readable text found");
+  return text;
+}
+function textToSafeHTML(text){
+  return text.split(/\n{2,}/).map(function(blk){
+    return "<p>"+escapeHTML(blk).replace(/\n/g,"<br>")+"</p>";
+  }).join("");
+}
+function initUpload(){
+  const status=$("#uploadStatus");
+  $("#docxInput").addEventListener("change",async function(e){
+    const file=e.target.files&&e.target.files[0];
+    if(!file) return;
+    if(!/\.docx$/i.test(file.name)){
+      status.textContent="Please choose a .docx file.";
+      return;
+    }
+    status.textContent="Reading "+file.name+" …";
+    try{
+      const ab=await file.arrayBuffer();
+      const text=await extractDocxText(ab);
+      const s=Store.get();
+      s.uploadedRules={present:true,name:file.name,
+        importedISO:new Date().toISOString(),
+        html:textToSafeHTML(text), text:text};
+      s.settings.refSource="uploaded";
+      Store.save();
+      status.textContent="Imported "+file.name+" ("+text.length.toLocaleString()+
+        " characters). It's now your Study Reference.";
+      Reference.render();
+    }catch(err){
+      status.textContent="Could not parse this file. The built-in rules are still "+
+        "available. (Tip: re-save it as a modern Word .docx and try again.)";
+    }
+  });
+  $("#clearUpload").addEventListener("click",function(){
+    const s=Store.get();
+    s.uploadedRules={present:false,name:"",importedISO:"",html:"",text:""};
+    s.settings.refSource="builtin"; Store.save();
+    status.textContent="Uploaded rules cleared. Showing built-in starter notes.";
+    Reference.render();
+  });
+}
+
+/* ---------- Dashboard ---------- */
+function renderHome(){
+  const s=Store.get();
+  $("#stTotal").textContent=s.stats.totalAnswered;
+  $("#stAcc").textContent=s.stats.totalAnswered
+    ? Math.round(s.stats.totalCorrect/s.stats.totalAnswered*100)+"%" : "—";
+  let missed=0;
+  for(const id in s.perQuestion) if(s.perQuestion[id].missed) missed++;
+  $("#stMissed").textContent=missed;
+  $("#stSessions").textContent=s.stats.sessions;
+  const cb=$("#catBreakdown"); cb.innerHTML="";
+  let shown=false;
+  for(const k in CATEGORIES){
+    const cs=s.categoryStats[k]; if(!cs||!cs.answered) continue;
+    shown=true;
+    const pct=Math.round(cs.correct/cs.answered*100);
+    const row=el("div",{style:"margin:10px 0"});
+    row.appendChild(el("div",{class:"row",style:"justify-content:space-between"},[
+      el("span",{text:CATEGORIES[k]}),
+      el("span",{class:"muted",text:cs.correct+"/"+cs.answered+" ("+pct+"%)"})
+    ]));
+    const bar=el("div",{class:"progressbar"}); const fi=el("i");
+    fi.style.width=pct+"%"; bar.appendChild(fi); row.appendChild(bar);
+    cb.appendChild(row);
+  }
+  if(!shown) cb.appendChild(el("p",{class:"muted",text:"Answer some questions to see your breakdown."}));
+}
+
+/* ---------- Router ---------- */
+const VIEWS=["home","quiz","flashcards","review","reference","upload"];
+function router(){
+  let v=(location.hash||"#home").replace("#","");
+  if(VIEWS.indexOf(v)<0) v="home";
+  VIEWS.forEach(function(name){
+    $("#view-"+name).hidden = (name!==v);
+  });
+  document.querySelectorAll("nav button").forEach(function(b){
+    b.setAttribute("aria-current", b.dataset.go===v?"page":"false");
+  });
+  window.scrollTo(0,0);
+  if(v==="home") renderHome();
+  else if(v==="quiz") Quiz.init();
+  else if(v==="flashcards") Flash.init();
+  else if(v==="review") Review.render();
+  else if(v==="reference") Reference.render();
+}
+
+/* ---------- Bootstrap ---------- */
+(function(){
+  Store.load();
+  const s=Store.get();
+  s.stats.lastVisitISO=new Date().toISOString();
+  Store.save();
+  refreshScoreChip();
+  document.querySelectorAll("nav button").forEach(function(b){
+    b.addEventListener("click",function(){ location.hash="#"+b.dataset.go; });
+  });
+  $("#exportBtn").addEventListener("click",function(){
+    const blob=new Blob([Store.exportJSON()],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="friendlyump-progress.json";
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  $("#resetBtn").addEventListener("click",function(){
+    if(confirm("Reset all progress? This cannot be undone.")){
+      Store.reset(); refreshScoreChip(); router();
+    }
+  });
+  Reference.init();
+  initUpload();
+  window.addEventListener("hashchange",router);
+  router();
+})();
+</script>
+</body>
+</html>
