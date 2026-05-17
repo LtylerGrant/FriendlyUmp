@@ -1,13 +1,14 @@
 /* FriendlyUmp service worker — offline app shell.
    Bump CACHE when any cached file changes to push an update. */
-const CACHE = "friendlyump-v2";
+const CACHE = "friendlyump-v4";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
-  "./apple-touch-icon.png"
+  "./apple-touch-icon.png",
+  "./2026%20LL%20Rules"
 ];
 
 self.addEventListener("install", (e) => {

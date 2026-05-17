@@ -549,7 +549,7 @@ function freshState(){
     stats:{totalAnswered:0,totalCorrect:0,sessions:0,lastVisitISO:""},
     perQuestion:{},
     categoryStats:{},
-    uploadedRules:{present:false,name:"",importedISO:"",html:"",text:""},
+    uploadedRules:{present:false,bundled:false,name:"",importedISO:"",html:"",text:""},
     settings:{categoryFilter:"all",refSource:"builtin"}
   };
 }
@@ -985,14 +985,79 @@ async function inflateZlib(bytes){
 }
 
 /* ---------- Offline .pdf text extractor ----------
-   Best-effort: walks raw PDF, inflates FlateDecode (and plain)
-   content streams with the browser-native DecompressionStream,
-   and pulls text from Tj/TJ/'/" operators. Scanned image-only
-   PDFs have no text and will report that clearly. */
-function pdfTextFromContent(content){
-  let res=""; let i=0; const n=content.length; let arr=0;
+   Best-effort: walks raw PDF, inflates FlateDecode/plain streams,
+   parses every /ToUnicode CMap so embedded-subset-font glyph codes
+   (Google Docs / Word exports) become real characters, then pulls
+   text from Tj/TJ/'/" with position-based line breaks. Scanned
+   image-only PDFs have no text and report that clearly. */
+function hexUtf16ToStr(h){
+  h=h.replace(/[^0-9A-Fa-f]/g,"");
+  let s="";
+  if(h.length>=4 && h.length%4===0){
+    for(let k=0;k<h.length;k+=4) s+=String.fromCharCode(parseInt(h.substr(k,4),16));
+  }else if(h.length>=2){
+    for(let k=0;k<h.length;k+=2) s+=String.fromCharCode(parseInt(h.substr(k,2),16));
+  }
+  return s;
+}
+function parseCMapInto(txt,map){
+  let m=txt.match(/beginbfchar([\s\S]*?)endbfchar/g)||[];
+  for(const blk of m){
+    const re=/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g; let g;
+    while((g=re.exec(blk))){
+      let src=g[1].toLowerCase(); if(src.length%2) src="0"+src;
+      const dst=hexUtf16ToStr(g[2]);
+      if(dst) (src.length>2?map.two:map.one).set(src,dst);
+    }
+  }
+  m=txt.match(/beginbfrange([\s\S]*?)endbfrange/g)||[];
+  for(const blk of m){
+    const re=/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(\[[^\]]*\]|<[0-9A-Fa-f]+>)/g; let g;
+    while((g=re.exec(blk))){
+      const loHex=g[1], lo=parseInt(loHex,16), hi=parseInt(g[2],16);
+      if(!(hi>=lo) || hi-lo>70000) continue;
+      const pad=loHex.length+(loHex.length%2);
+      const tgt=g[3];
+      const dst=map[pad>2?"two":"one"];
+      if(tgt[0]==="["){
+        const list=tgt.match(/<([0-9A-Fa-f]+)>/g)||[];
+        for(let c=lo;c<=hi && (c-lo)<list.length;c++){
+          const v=hexUtf16ToStr(list[c-lo]);
+          if(v) dst.set(c.toString(16).padStart(pad,"0"),v);
+        }
+      }else{
+        const baseHex=tgt.replace(/[<>]/g,"");
+        const head=baseHex.slice(0,-4), tailV=parseInt(baseHex.slice(-4)||"0",16);
+        for(let c=lo;c<=hi;c++){
+          const u=(tailV+(c-lo))&0xffff;
+          const v=hexUtf16ToStr(head)+String.fromCharCode(u);
+          if(v) dst.set(c.toString(16).padStart(pad,"0"),v);
+        }
+      }
+    }
+  }
+}
+function pdfTextFromContent(content,map){
+  const has2=map.two.size>0;
+  function mapBytes(b){
+    let s="",i=0;
+    while(i<b.length){
+      if(has2 && i+1<b.length){
+        const h2=(b[i]<16?"0":"")+b[i].toString(16)+(b[i+1]<16?"0":"")+b[i+1].toString(16);
+        if(map.two.has(h2)){ s+=map.two.get(h2); i+=2; continue; }
+      }
+      const h1=(b[i]<16?"0":"")+b[i].toString(16);
+      if(map.one.has(h1)){ s+=map.one.get(h1); i++; continue; }
+      const v=b[i];
+      if(v===9||v===10||v===13||(v>=32&&v<127)) s+=String.fromCharCode(v);
+      else if(v>=128 && !has2 && map.one.size===0) s+=String.fromCharCode(v);
+      i++;
+    }
+    return s;
+  }
+  let res="",i=0,arr=0,lastY=null; const n=content.length; let nums=[];
   function readLiteral(){
-    let depth=1, s=""; i++;
+    let depth=1; const b=[]; i++;
     while(i<n && depth>0){
       const ch=content[i];
       if(ch==="\\"){
@@ -1000,47 +1065,60 @@ function pdfTextFromContent(content){
         if(nx>="0"&&nx<="7"){
           let oct=nx,k=2;
           while(k<4 && content[i+k]>="0"&&content[i+k]<="7"){ oct+=content[i+k]; k++; }
-          s+=String.fromCharCode(parseInt(oct,8)&0xff); i+=k; continue;
+          b.push(parseInt(oct,8)&0xff); i+=k; continue;
         }
-        if(nx==="n")s+="\n"; else if(nx==="r")s+="\r"; else if(nx==="t")s+="\t";
-        else if(nx==="b")s+="\b"; else if(nx==="f")s+="\f";
-        else if(nx==="\n"||nx==="\r"){ /* line continuation */ }
-        else s+=nx;
+        if(nx==="n")b.push(10); else if(nx==="r")b.push(13);
+        else if(nx==="t")b.push(9); else if(nx==="b")b.push(8);
+        else if(nx==="f")b.push(12);
+        else if(nx==="\n"||nx==="\r"){}
+        else b.push(nx.charCodeAt(0)&0xff);
         i+=2; continue;
       }
-      if(ch==="("){ depth++; s+=ch; }
-      else if(ch===")"){ depth--; if(depth===0){ i++; break; } s+=ch; }
-      else s+=ch;
+      if(ch==="("){ depth++; b.push(40); }
+      else if(ch===")"){ depth--; if(depth===0){ i++; break; } b.push(41); }
+      else b.push(ch.charCodeAt(0)&0xff);
       i++;
     }
-    return s;
+    return b;
   }
   function readHex(){
-    let j=i+1, hex="";
+    let j=i+1,hex="";
     while(j<n && content[j]!==">"){ hex+=content[j]; j++; }
     hex=hex.replace(/[^0-9A-Fa-f]/g,"");
     if(hex.length%2) hex+="0";
-    let s="";
-    for(let k=0;k<hex.length;k+=2) s+=String.fromCharCode(parseInt(hex.substr(k,2),16)&0xff);
-    i=j+1; return s;
+    const b=[];
+    for(let k=0;k<hex.length;k+=2) b.push(parseInt(hex.substr(k,2),16)&0xff);
+    i=j+1; return b;
   }
   while(i<n){
     const c=content[i];
-    if(c==="("){ res+=readLiteral(); continue; }
-    if(c==="<" && content[i+1]!=="<"){ res+=readHex(); continue; }
+    if(c==="("){ res+=mapBytes(readLiteral()); continue; }
+    if(c==="<" && content[i+1]!=="<"){ res+=mapBytes(readHex()); continue; }
     if(c==="["){ arr++; i++; continue; }
     if(c==="]"){ if(arr>0)arr--; i++; continue; }
-    if(arr>0 && (c==="-"||(c>="0"&&c<="9"))){
-      let j=i, num="";
+    if(c==="-"||(c>="0"&&c<="9")||c==="."){
+      let j=i,num="";
       while(j<n && /[-0-9.]/.test(content[j])){ num+=content[j]; j++; }
-      if(parseFloat(num)<=-100) res+=" ";
+      const f=parseFloat(num);
+      if(arr>0){ if(f<=-100) res+=" "; }
+      else nums.push(f);
       i=j; continue;
     }
     if(/[A-Za-z'"*]/.test(c)){
-      let j=i, tok="";
+      let j=i,tok="";
       while(j<n && /[A-Za-z0-9'"*]/.test(content[j])){ tok+=content[j]; j++; }
-      if(tok==="Td"||tok==="TD"||tok==="T*"||tok==="'"||tok==='"'||tok==="BT")
-        res+="\n";
+      if(tok==="T*"||tok==="'"||tok==='"'){ res+="\n"; }
+      else if(tok==="Td"||tok==="TD"){
+        if(nums.length>=2 && nums[nums.length-1]!==0) res+="\n";
+        else res+=" ";
+      }
+      else if(tok==="Tm"){
+        const y=nums[nums.length-1];
+        if(lastY!==null && y!==lastY) res+="\n";
+        lastY=y;
+      }
+      else if(tok==="BT"){ lastY=null; }
+      nums=[];
       i=j; continue;
     }
     i++;
@@ -1054,7 +1132,8 @@ async function extractPdfText(arrayBuffer){
   let bin=""; const CH=0x8000;
   for(let i=0;i<bytes.length;i+=CH)
     bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
-  const out=[]; let idx=0;
+  const map={one:new Map(),two:new Map()};
+  const contents=[]; let idx=0;
   while(true){
     const sIdx=bin.indexOf("stream",idx);
     if(sIdx<0) break;
@@ -1067,8 +1146,8 @@ async function extractPdfText(arrayBuffer){
     if(eIdx<0) break;
     let dataStr=bin.slice(ds,eIdx).replace(/\r?\n$/,"");
     idx=eIdx+9;
-    const blocked=/\/(LZWDecode|ASCII85Decode|ASCIIHexDecode|RunLengthDecode|DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode)/.test(dict);
-    if(blocked) continue;
+    if(/\/(LZWDecode|ASCII85Decode|ASCIIHexDecode|RunLengthDecode|DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode)/.test(dict))
+      continue;
     let content=null;
     if(/\/FlateDecode/.test(dict)){
       const comp=Uint8Array.from(dataStr,ch=>ch.charCodeAt(0)&0xff);
@@ -1080,10 +1159,11 @@ async function extractPdfText(arrayBuffer){
     } else if(!/\/Filter/.test(dict)){
       content=dataStr;
     }
-    if(content && /\bBT\b|Tj|TJ/.test(content))
-      out.push(pdfTextFromContent(content));
+    if(!content) continue;
+    if(/beginbfchar|beginbfrange/.test(content)) parseCMapInto(content,map);
+    else if(/\bBT\b|Tj|TJ/.test(content)) contents.push(content);
   }
-  const text=out.join("\n")
+  const text=contents.map(c=>pdfTextFromContent(c,map)).join("\n")
     .replace(/\r/g,"")
     .replace(/[ \t]+\n/g,"\n")
     .replace(/[ \t]{2,}/g," ")
@@ -1113,7 +1193,7 @@ function initUpload(){
       const ab=await file.arrayBuffer();
       const text=isPdf ? await extractPdfText(ab) : await extractDocxText(ab);
       const s=Store.get();
-      s.uploadedRules={present:true,name:file.name,
+      s.uploadedRules={present:true,bundled:false,name:file.name,
         importedISO:new Date().toISOString(),
         html:textToSafeHTML(text), text:text};
       s.settings.refSource="uploaded";
@@ -1126,13 +1206,38 @@ function initUpload(){
         "available. (Tip: re-save it as a modern Word .docx and try again.)";
     }
   });
-  $("#clearUpload").addEventListener("click",function(){
+  $("#clearUpload").addEventListener("click",async function(){
     const s=Store.get();
-    s.uploadedRules={present:false,name:"",importedISO:"",html:"",text:""};
+    s.uploadedRules={present:false,bundled:false,name:"",importedISO:"",html:"",text:""};
     s.settings.refSource="builtin"; Store.save();
-    status.textContent="Uploaded rules cleared. Showing built-in starter notes.";
     Reference.render();
+    const ok=await loadBundledRules(true);
+    status.textContent = ok
+      ? "Your upload was cleared. Showing the included 2026 LL Rules."
+      : "Uploaded rules cleared. Showing built-in starter notes.";
   });
+}
+/* The repo ships a default rulebook so it's the Study Reference on
+   first load with no upload. A user upload always overrides it; the
+   service worker caches the file for offline use. */
+const BUNDLED_DOC={url:"2026%20LL%20Rules",name:"2026 LL Rules"};
+async function loadBundledRules(force){
+  const s=Store.get();
+  if(s.uploadedRules.present && !s.uploadedRules.bundled) return false;
+  if(s.uploadedRules.present && s.uploadedRules.bundled && !force) return true;
+  try{
+    const res=await fetch(BUNDLED_DOC.url,{cache:"no-cache"});
+    if(!res.ok) return false;
+    const text=(await res.text()).replace(/\r\n?/g,"\n").trim();
+    if(!text) return false;
+    s.uploadedRules={present:true,bundled:true,name:BUNDLED_DOC.name,
+      importedISO:new Date().toISOString(),
+      html:textToSafeHTML(text), text:text};
+    s.settings.refSource="uploaded";
+    Store.save();
+    Reference.render();
+    return true;
+  }catch(e){ return false; }
 }
 
 /* ---------- Dashboard ---------- */
@@ -1206,6 +1311,7 @@ function router(){
   });
   Reference.init();
   initUpload();
+  loadBundledRules();
   window.addEventListener("hashchange",router);
   router();
   // Offline app shell (no-op on file:// or unsupported browsers).
