@@ -1,6 +1,6 @@
 /* FriendlyUmp service worker — offline app shell.
    Bump CACHE when any cached file changes to push an update. */
-const CACHE = "friendlyump-v7";
+const CACHE = "friendlyump-v8";
 const ASSETS = [
   "./",
   "./index.html",
