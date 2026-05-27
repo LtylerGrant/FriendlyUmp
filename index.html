@@ -97,6 +97,14 @@
   details summary{cursor:pointer;padding:12px 14px;font-weight:600;min-height:44px}
   details .body{padding:0 14px 14px}
   .ref-html h1,.ref-html h2,.ref-html h3{font-size:1.05rem}
+  .ref-html mark,.ref-hit mark{background:#fff3a3;color:#1d2733;border-radius:3px;padding:0 2px}
+  @media (prefers-color-scheme: dark){
+    .ref-html mark,.ref-hit mark{background:#5a4a00;color:#fff5b1}
+  }
+  .ref-hit{border:1px solid var(--line);border-radius:9px;margin:8px 0;background:var(--card);padding:12px 14px}
+  .ref-hit .num{font-weight:700;color:var(--accent);margin-right:8px}
+  .ref-hit .body{white-space:pre-wrap;margin-top:6px;font-size:.95rem;line-height:1.5}
+  .ref-count{color:var(--muted);font-size:.85rem;margin:4px 0 8px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
   .progressbar{background:var(--chip);border-radius:999px;height:10px;overflow:hidden}
   .progressbar i{display:block;height:100%;background:var(--accent)}
@@ -212,8 +220,9 @@
       <button class="btn secondary" data-src="builtin">Built-in starter notes</button>
     </div>
     <div class="row">
-      <input type="search" id="refSearch" placeholder="Search the rules…"
-             aria-label="Search the rules">
+      <input type="search" id="refSearch"
+             placeholder="Search by rule number (e.g. 7.13) or keyword…"
+             aria-label="Search rules by number or keyword">
     </div>
     <div id="refHost"></div>
   </section>
@@ -1258,6 +1267,50 @@ const Flash = (function(){
 
 /* ---------- Study Reference + search ---------- */
 const Reference = (function(){
+  let cachedSections=null, cachedFor=null;
+  function parseRuleSections(text){
+    const sections=[]; const lines=text.split("\n");
+    const ruleRe=/^(\d+\.\d+(?:\([a-z0-9]+\))?)\s*[-–—]\s/;
+    let cur=null;
+    for(let i=0;i<lines.length;i++){
+      const ln=lines[i]; const m=ln.match(ruleRe);
+      if(m){
+        if(cur) sections.push(cur);
+        cur={number:m[1],lines:[ln]};
+      } else if(cur){
+        cur.lines.push(ln);
+      }
+    }
+    if(cur) sections.push(cur);
+    return sections.map(function(s){return {number:s.number,text:s.lines.join("\n").replace(/\s+$/,"")};});
+  }
+  function getSections(s){
+    const key=s.uploadedRules.importedISO+"|"+s.uploadedRules.name;
+    if(cachedFor===key && cachedSections) return cachedSections;
+    cachedSections=parseRuleSections(s.uploadedRules.text||"");
+    cachedFor=key;
+    return cachedSections;
+  }
+  function highlight(text,term){
+    if(!term) return escapeHTML(text);
+    const lower=text.toLowerCase(); const t=term.toLowerCase();
+    let out="",i=0,idx;
+    while((idx=lower.indexOf(t,i))>=0){
+      out+=escapeHTML(text.slice(i,idx));
+      out+="<mark>"+escapeHTML(text.slice(idx,idx+t.length))+"</mark>";
+      i=idx+t.length;
+    }
+    out+=escapeHTML(text.slice(i));
+    return out;
+  }
+  function searchSections(sections,term){
+    const t=term.toLowerCase();
+    const numMatch=/^(\d+(?:\.\d+)?(?:\([a-z0-9]+\))?)/.exec(term);
+    return sections.filter(function(s){
+      if(numMatch && s.number.toLowerCase().indexOf(numMatch[1].toLowerCase())===0) return true;
+      return s.text.toLowerCase().indexOf(t)>=0;
+    });
+  }
   function renderList(){
     const s=Store.get();
     const host=$("#refHost"); host.innerHTML="";
@@ -1271,24 +1324,59 @@ const Reference = (function(){
         b.classList.toggle("secondary", b.dataset.src!==s.settings.refSource);
       });
     }
-    const term=($("#refSearch").value||"").trim().toLowerCase();
+    const term=($("#refSearch").value||"").trim();
     if(hasUp && s.settings.refSource==="uploaded"){
       const wrap=el("div",{class:"card"});
       wrap.appendChild(el("p",{class:"muted",text:"Source: "+s.uploadedRules.name}));
-      const body=el("div",{class:"ref-html"});
-      body.innerHTML = s.uploadedRules.html || ("<pre>"+escapeHTML(s.uploadedRules.text)+"</pre>");
-      if(term && body.textContent.toLowerCase().indexOf(term)<0){
-        wrap.appendChild(el("p",{class:"muted",text:'No match for "'+term+'" in the uploaded document.'}));
-      } else {
+      const sections=getSections(s);
+      if(!term){
+        const body=el("div",{class:"ref-html"});
+        body.innerHTML = s.uploadedRules.html || ("<pre>"+escapeHTML(s.uploadedRules.text)+"</pre>");
         wrap.appendChild(body);
+        host.appendChild(wrap);
+        return;
+      }
+      if(sections.length===0){
+        const body=el("div",{class:"ref-html"});
+        body.innerHTML=highlight(s.uploadedRules.text||"",term);
+        if((s.uploadedRules.text||"").toLowerCase().indexOf(term.toLowerCase())<0){
+          wrap.appendChild(el("p",{class:"muted",text:'No match for "'+term+'" in the document.'}));
+        } else {
+          wrap.appendChild(body);
+        }
+        host.appendChild(wrap);
+        return;
+      }
+      const hits=searchSections(sections,term);
+      wrap.appendChild(el("p",{class:"ref-count",
+        text: hits.length+" rule"+(hits.length===1?"":"s")+" match \""+term+"\""}));
+      if(hits.length===0){
+        wrap.appendChild(el("p",{class:"muted",
+          text:'Try a rule number (e.g. 7.13) or a different keyword.'}));
+      } else {
+        hits.slice(0,50).forEach(function(h){
+          const card=el("div",{class:"ref-hit"});
+          const head=el("div",{});
+          head.innerHTML='<span class="num">Rule '+escapeHTML(h.number)+'</span>';
+          card.appendChild(head);
+          const body=el("div",{class:"body"});
+          body.innerHTML=highlight(h.text,term);
+          card.appendChild(body);
+          wrap.appendChild(card);
+        });
+        if(hits.length>50){
+          wrap.appendChild(el("p",{class:"muted",
+            text:"Showing first 50 of "+hits.length+". Refine the search to narrow."}));
+        }
       }
       host.appendChild(wrap);
       return;
     }
     let any=false;
+    const termLC=term.toLowerCase();
     DEFAULT_RULES.forEach(function(r){
       const hay=(r.title+" "+r.html).toLowerCase();
-      if(term && hay.indexOf(term)<0) return;
+      if(termLC && hay.indexOf(termLC)<0) return;
       any=true;
       const d=el("details"); if(!term) d.open=false; else d.open=true;
       d.appendChild(el("summary",{text:r.title}));
