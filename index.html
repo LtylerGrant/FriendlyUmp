@@ -104,6 +104,16 @@
   .ref-hit{border:1px solid var(--line);border-radius:9px;margin:8px 0;background:var(--card);padding:12px 14px}
   .ref-hit .num{font-weight:700;color:var(--accent);margin-right:8px}
   .ref-hit .body{white-space:pre-wrap;margin-top:6px;font-size:.95rem;line-height:1.5}
+  .ref-hit.ref-hit-active{outline:3px solid var(--accent);outline-offset:-2px}
+  .ref-toolbar{position:sticky;top:0;z-index:2;background:var(--bg);
+    padding:8px 0;margin:0 0 6px;display:flex;gap:8px;align-items:center;
+    border-bottom:1px solid var(--line)}
+  .ref-toolbar .count{color:var(--muted);font-size:.9rem;flex:1}
+  .ref-toolbar button{min-width:44px;min-height:36px;padding:6px 12px;
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:7px;cursor:pointer;font-weight:700;font-size:1rem}
+  .ref-toolbar button:hover{background:var(--chip)}
+  .ref-toolbar button[disabled]{opacity:.4;cursor:not-allowed}
   .ref-count{color:var(--muted);font-size:.85rem;margin:4px 0 8px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
   .progressbar{background:var(--chip);border-radius:999px;height:10px;overflow:hidden}
@@ -1268,6 +1278,7 @@ const Flash = (function(){
 /* ---------- Study Reference + search ---------- */
 const Reference = (function(){
   let cachedSections=null, cachedFor=null;
+  let matchCards=[], activeIdx=-1;
   function parseRuleSections(text){
     const sections=[]; const lines=text.split("\n");
     const ruleRe=/^(\d+\.\d+(?:\([a-z0-9]+\))?)\s*[-–—]\s/;
@@ -1303,18 +1314,51 @@ const Reference = (function(){
     out+=escapeHTML(text.slice(i));
     return out;
   }
-  function searchSections(sections,term){
-    const t=term.toLowerCase();
-    const numMatch=/^(\d+(?:\.\d+)?(?:\([a-z0-9]+\))?)/.exec(term);
-    return sections.filter(function(s){
-      if(numMatch && s.number.toLowerCase().indexOf(numMatch[1].toLowerCase())===0) return true;
-      return s.text.toLowerCase().indexOf(t)>=0;
-    });
+  function isRuleNumber(t){
+    return /^\d+(\.\d+)?(\([a-z0-9]+\))?$/i.test(t.trim());
+  }
+  function findKeywordMatches(sections,term){
+    const t=term.toLowerCase(); const out=[];
+    for(let si=0;si<sections.length;si++){
+      const s=sections[si], lower=s.text.toLowerCase();
+      let i=0,idx;
+      while((idx=lower.indexOf(t,i))>=0){
+        out.push({number:s.number,sectionText:s.text,start:idx,end:idx+t.length});
+        i=idx+t.length;
+        if(out.length>=200) return out;
+      }
+    }
+    return out;
+  }
+  function snippetHTMLFor(m){
+    const before=90, after=160;
+    const lo=Math.max(0,m.start-before);
+    const hi=Math.min(m.sectionText.length,m.end+after);
+    const seg=m.sectionText.slice(lo,hi);
+    const ls=m.start-lo, le=m.end-lo;
+    const pre=(lo>0?"…":"")+seg.slice(0,ls);
+    const mid=seg.slice(ls,le);
+    const post=seg.slice(le)+(hi<m.sectionText.length?"…":"");
+    return escapeHTML(pre)+"<mark>"+escapeHTML(mid)+"</mark>"+escapeHTML(post);
+  }
+  function setActive(idx,scroll){
+    if(matchCards.length===0) return;
+    if(idx<0) idx=matchCards.length-1;
+    if(idx>=matchCards.length) idx=0;
+    if(activeIdx>=0 && matchCards[activeIdx])
+      matchCards[activeIdx].classList.remove("ref-hit-active");
+    activeIdx=idx;
+    const c=matchCards[activeIdx];
+    c.classList.add("ref-hit-active");
+    if(scroll) c.scrollIntoView({behavior:"smooth",block:"center"});
+    const lbl=document.getElementById("refMatchLabel");
+    if(lbl) lbl.textContent=(activeIdx+1)+" / "+matchCards.length;
   }
   function renderList(){
     const s=Store.get();
     const host=$("#refHost"); host.innerHTML="";
     $("#refDisclaimer").textContent=DISCLAIMER;
+    matchCards=[]; activeIdx=-1;
     const hasUp = s.uploadedRules.present;
     $("#refToggle").hidden = !hasUp;
     if(hasUp){
@@ -1338,38 +1382,80 @@ const Reference = (function(){
       }
       if(sections.length===0){
         const body=el("div",{class:"ref-html"});
-        body.innerHTML=highlight(s.uploadedRules.text||"",term);
-        if((s.uploadedRules.text||"").toLowerCase().indexOf(term.toLowerCase())<0){
+        const docText=s.uploadedRules.text||"";
+        if(docText.toLowerCase().indexOf(term.toLowerCase())<0){
           wrap.appendChild(el("p",{class:"muted",text:'No match for "'+term+'" in the document.'}));
         } else {
+          body.innerHTML=highlight(docText,term);
           wrap.appendChild(body);
         }
         host.appendChild(wrap);
         return;
       }
-      const hits=searchSections(sections,term);
-      wrap.appendChild(el("p",{class:"ref-count",
-        text: hits.length+" rule"+(hits.length===1?"":"s")+" match \""+term+"\""}));
-      if(hits.length===0){
-        wrap.appendChild(el("p",{class:"muted",
-          text:'Try a rule number (e.g. 7.13) or a different keyword.'}));
-      } else {
-        hits.slice(0,50).forEach(function(h){
-          const card=el("div",{class:"ref-hit"});
-          const head=el("div",{});
-          head.innerHTML='<span class="num">Rule '+escapeHTML(h.number)+'</span>';
-          card.appendChild(head);
-          const body=el("div",{class:"body"});
-          body.innerHTML=highlight(h.text,term);
-          card.appendChild(body);
-          wrap.appendChild(card);
-        });
-        if(hits.length>50){
+      if(isRuleNumber(term)){
+        const lo=term.toLowerCase();
+        const hits=sections.filter(function(x){return x.number.toLowerCase().indexOf(lo)===0;});
+        wrap.appendChild(el("p",{class:"ref-count",
+          text: hits.length+" rule"+(hits.length===1?"":"s")+" matching \""+term+"\""}));
+        if(hits.length===0){
           wrap.appendChild(el("p",{class:"muted",
-            text:"Showing first 50 of "+hits.length+". Refine the search to narrow."}));
+            text:'No rule with that number. Try a keyword instead.'}));
+        } else {
+          hits.forEach(function(h){
+            const card=el("div",{class:"ref-hit"});
+            const head=el("div",{}); head.innerHTML='<span class="num">Rule '+escapeHTML(h.number)+'</span>';
+            card.appendChild(head);
+            const body=el("div",{class:"body",text:h.text});
+            card.appendChild(body);
+            wrap.appendChild(card);
+          });
         }
+        host.appendChild(wrap);
+        return;
+      }
+      if(term.length<2){
+        wrap.appendChild(el("p",{class:"muted",text:"Type at least 2 characters to search by keyword (or type a rule number like 7.13)."}));
+        host.appendChild(wrap);
+        return;
+      }
+      const matches=findKeywordMatches(sections,term);
+      if(matches.length===0){
+        wrap.appendChild(el("p",{class:"muted",
+          text:'No match for "'+term+'". Try a rule number (e.g. 7.13) or a different keyword.'}));
+        host.appendChild(wrap);
+        return;
+      }
+      const rulesHit=new Set(matches.map(function(m){return m.number;})).size;
+      const bar=el("div",{class:"ref-toolbar"});
+      const lbl=el("span",{class:"count",
+        text: matches.length+" match"+(matches.length===1?"":"es")+" in "+
+              rulesHit+" rule"+(rulesHit===1?"":"s")});
+      const sep=el("span",{class:"count",style:"flex:0 0 auto"});
+      sep.id="refMatchLabel"; sep.textContent="1 / "+matches.length;
+      const prev=el("button",{type:"button","aria-label":"Previous match",text:"↑"});
+      const next=el("button",{type:"button","aria-label":"Next match",text:"↓"});
+      prev.onclick=function(){setActive(activeIdx-1,true);};
+      next.onclick=function(){setActive(activeIdx+1,true);};
+      bar.appendChild(lbl); bar.appendChild(sep); bar.appendChild(prev); bar.appendChild(next);
+      wrap.appendChild(bar);
+      const limit=Math.min(matches.length,100);
+      for(let i=0;i<limit;i++){
+        const m=matches[i];
+        const card=el("div",{class:"ref-hit"});
+        const head=el("div",{}); head.innerHTML='<span class="num">Rule '+escapeHTML(m.number)+'</span>';
+        card.appendChild(head);
+        const body=el("div",{class:"body"});
+        body.innerHTML=snippetHTMLFor(m);
+        card.appendChild(body);
+        wrap.appendChild(card);
+        matchCards.push(card);
+      }
+      if(matches.length>limit){
+        wrap.appendChild(el("p",{class:"muted",
+          text:"Showing first "+limit+" of "+matches.length+". Refine to narrow."}));
       }
       host.appendChild(wrap);
+      if(matchCards.length>0) setActive(0,false);
       return;
     }
     let any=false;
@@ -1388,6 +1474,12 @@ const Reference = (function(){
   }
   function init(){
     $("#refSearch").oninput=renderList;
+    $("#refSearch").onkeydown=function(e){
+      if(e.key==="Enter"){
+        e.preventDefault();
+        if(matchCards.length>0) setActive(e.shiftKey?activeIdx-1:activeIdx+1, true);
+      }
+    };
     $("#refToggle").querySelectorAll("button").forEach(function(b){
       b.onclick=function(){
         Store.get().settings.refSource=b.dataset.src; Store.save(); renderList();
